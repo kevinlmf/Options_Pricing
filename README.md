@@ -1,24 +1,35 @@
 # Options Pricing System
 
-Integrated options trading system with portfolio optimization, risk management, and real-time monitoring.
+An options trading system integrating traditional pricing models with a **multi-agent environment** that simulates market microstructure dynamics through pricing models.
 
-## From Research to Production: End-to-End Trading System Lifecycle
 
-## System Abstraction: Data → Environment → Execution → Monitoring
+## Installation
+
+```bash
+pip install numpy scipy pandas scikit-learn torch gymnasium
+
+# Optional C++ accelerators
+cd cpp_accelerators && mkdir build && cd build && cmake .. && make
+```
+
+
+
+## Architecture (6-Layer Pipeline)
+
+## System Abstraction: Market Data → Forecasting → Pricing → Portfolio → Execution → Monitoring
 
 | **Stage** | **Core Function** | **Typical Components** | **Output** |
 |:-----------|:------------------|:------------------------|:------------|
-| **1. Data Layer** | Collect and model market signals | Market Data, LSTM, GARCH, Volatility Surface Estimator | Forecasted Prices / Volatility |
-| **2. Environment Layer** | Simulate and value the trading world | Multi-Agent Simulator, Option Pricing Models (Black–Scholes / Heston / SABR), Market State Classifier | Market States, Theoretical Prices, Greeks |
-| **3. Execution Layer** | Strategy generation and risk control | DP / RL Strategy Selector, Order Generator, Risk Controller (VaR, CVaR, Delta, Gamma, Vega, Theta, Concentration, Vol Regime) | Approved Orders, Portfolio Updates |
-| **4. Monitoring Layer** | Real-time feedback and system optimization | Portfolio Tracker, WebSocket Dashboard, Metrics Logger | Live Risk/Return Visualization, System Logs |
+| **1. Market Data Layer** | Acquire and preprocess financial signals | Price Feeds, Volatility Surface, Feature Extractors | Cleaned Time-Series, State Variables |
+| **2. Forecasting Layer** | Estimate dynamic parameters | LSTM / GARCH Models, Regime Switchers | Forecasted Mean (μ), Volatility (σ) |
+| **3. Pricing Layer** | Value instruments and compute sensitivities | Black–Scholes, Heston, SABR Models | Theoretical Prices (Vᵢ), Greeks (Δ, Γ, ν, Θ) |
+| **4. Portfolio Layer** | Optimize asset allocation under constraints | CVaR Optimization, Greek-Constrained Solver | Optimal Weights, Portfolio Metrics |
+| **5. Risk & Execution Layer** | Validate and execute trading decisions | Risk Controller (VaR, CVaR, Concentration Checks), Order Executor | Approved Trades, Execution Logs |
+| **6. Monitoring Layer** | Real-time feedback and adaptive tuning | Dashboard, PnL Tracker, Metrics Logger | Live Risk/Return Visualization, System Health Reports |
 
-
-
-## Architecture (7-Layer Pipeline)
 
 ```
-Market Data → Forecasting (σ, μ) → Pricing (V_i) → Greeks (Δ, Γ, ν, Θ)
+Market Data → Forecasting (σ, μ) → Pricing (V_i) 
     → Portfolio Optimization (CVaR + Greek Constraints)
     → Risk Control → Execution → Real-time Monitoring
 ```
@@ -42,7 +53,11 @@ Options_Pricing/
     └── integrated_portfolio_optimization_demo.py  # Complete pipeline ⭐
 ```
 
-## Key Innovation: Reduced-form vs Structural Forecasting
+
+
+## Key Features
+
+## 1.Key Innovation: Reduced-form vs Structural Forecasting in parameters of options pricing models
 
 | Approach | Nature | Best For |
 |----------|--------|----------|
@@ -56,9 +71,17 @@ comparator = ForecastComparator()
 comparison = comparator.compare_forecasts(prices, reduced_form, structural)
 ```
 
-## Key Features
+### 2. Pricing Models
+Black-Scholes, Heston (stochastic vol), SABR, Binomial Tree, Local Volatility
 
-### 1. Portfolio Optimization
+```python
+from models.options_pricing.black_scholes import BlackScholesModel, BSParameters
+params = BSParameters(S0=50000, K=51000, T=30/365, r=0.05, sigma=0.6)
+bs = BlackScholesModel(params)
+price, delta = bs.call_price(), bs.delta('call')
+```
+
+### 3. Portfolio Optimization
 **Objective:** `maximize: α × E[Return] - β × CVaR_95 - γ × |Δ_p|`
 
 Constraints: Greek limits (Delta, Vega, Gamma), delta neutrality, max position size
@@ -71,7 +94,7 @@ result = optimizer.optimize_portfolio(option_data, forecasted_returns)
 print(f"Sharpe: {result.expected_sharpe}, CVaR: ${result.expected_cvar:,.2f}")
 ```
 
-### 2. Real-Time Monitoring
+### 4. Real-Time Monitoring
 Tracks P&L, Greeks (Δ, Γ, ν, Θ), VaR/CVaR, Sharpe/Sortino, drawdown, latency
 
 ```python
@@ -82,17 +105,9 @@ snapshot = monitor.update(positions, option_prices, greeks)
 print(monitor.generate_report())
 ```
 
-### 3. Pricing Models
-Black-Scholes, Heston (stochastic vol), SABR, Binomial Tree, Local Volatility
 
-```python
-from models.options_pricing.black_scholes import BlackScholesModel, BSParameters
-params = BSParameters(S0=50000, K=51000, T=30/365, r=0.05, sigma=0.6)
-bs = BlackScholesModel(params)
-price, delta = bs.call_price(), bs.delta('call')
-```
 
-### 4. Risk Management
+### 5. Risk Management
 Pre-trade checks: position limits, Greek limits, concentration, drawdown
 
 ```python
@@ -156,14 +171,7 @@ strategy, positions = integrated.select_and_optimize(market_state, options, retu
 
 **Performance:** Pricing ~0.1ms, Optimization ~150ms, Total latency ~40ms
 
-## Installation
 
-```bash
-pip install numpy scipy pandas scikit-learn torch gymnasium
-
-# Optional C++ accelerators
-cd cpp_accelerators && mkdir build && cd build && cmake .. && make
-```
 
 ## Theory & References
 
@@ -171,4 +179,4 @@ See `theory/` for mathematical foundations (Black-Scholes PDE, Greeks, CVaR opti
 
 ---
 
-MIT License | Explore interaction and uncertainty in both pricing and life, with hope even in the depth of winter☀️
+Explore interaction and uncertainty in both pricing and life, with hope even in the depth of winter☀️
