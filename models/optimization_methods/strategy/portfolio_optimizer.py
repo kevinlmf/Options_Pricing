@@ -72,7 +72,8 @@ class PortfolioOptimizer:
                  confidence_level: float = 0.95,
                  max_delta: float = 1000.0,
                  max_vega: float = 5000.0,
-                 max_gamma: float = 100.0):
+                 max_gamma: float = 100.0,
+                 max_theta: Optional[float] = None):
         """
         Initialize portfolio optimizer.
 
@@ -86,6 +87,8 @@ class PortfolioOptimizer:
             Confidence level for CVaR (e.g., 0.95)
         max_delta, max_vega, max_gamma : float
             Greek constraints
+        max_theta : Optional[float]
+            Theta constraint (None = no constraint)
         """
         self.risk_aversion = risk_aversion
         self.delta_neutrality_weight = delta_neutrality_weight
@@ -93,6 +96,7 @@ class PortfolioOptimizer:
         self.max_delta = max_delta
         self.max_vega = max_vega
         self.max_gamma = max_gamma
+        self.max_theta = max_theta
 
     def optimize_portfolio(self,
                           option_data: Dict[str, Dict],
@@ -191,6 +195,13 @@ class PortfolioOptimizer:
             'type': 'ineq',
             'fun': lambda w: self.max_gamma - abs(np.dot(gammas, w))
         })
+
+        # Theta constraint: |Σ Θ_i × w_i| ≤ Θ_max (if specified)
+        if self.max_theta is not None:
+            constraints.append({
+                'type': 'ineq',
+                'fun': lambda w: self.max_theta - abs(np.dot(thetas, w))
+            })
 
         # Initial guess: zero positions
         w0 = np.zeros(n_options)

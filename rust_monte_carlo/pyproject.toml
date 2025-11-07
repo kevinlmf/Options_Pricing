@@ -1,0 +1,30 @@
+[build-system]
+requires = ["maturin>=1.0,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "monte-carlo-validator"
+version = "0.1.0"
+description = "High-performance Monte Carlo validation for multi-agent option pricing"
+authors = [{name = "Options Pricing Team"}]
+readme = "README.md"
+requires-python = ">=3.8"
+classifiers = [
+    "Programming Language :: Rust",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Programming Language :: Python :: Implementation :: PyPy",
+]
+dependencies = [
+    "numpy>=1.20.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-benchmark>=4.0",
+    "matplotlib>=3.5",
+]
+
+[tool.maturin]
+module-name = "monte_carlo_rust"
+bindings = "pyo3"

@@ -18,18 +18,8 @@ from typing import Tuple, Optional
 import cmath
 from .base_model import BaseModel, ModelParameters
 
-# Try to import C++ accelerated module
-try:
-    import heston_cpp
-    HESTON_CPP_AVAILABLE = True
-except ImportError:
-    HESTON_CPP_AVAILABLE = False
-    import warnings
-    warnings.warn(
-        "C++ accelerated Heston module not available. "
-        "Build it with: cd cpp_accelerators && make. "
-        "Falling back to pure Python implementation (slower)."
-    )
+# C++ acceleration removed - using pure Python implementation
+HESTON_CPP_AVAILABLE = False
 
 
 @dataclass
@@ -117,7 +107,7 @@ class HestonModel(BaseModel):
 
         return (numerator / denominator).real
 
-    def option_price(self, option_type: str = 'call', use_cpp: bool = True) -> float:
+    def option_price(self, option_type: str = 'call') -> float:
         """
         Calculate option price using Heston formula
 
@@ -125,31 +115,8 @@ class HestonModel(BaseModel):
         -----------
         option_type : str
             'call' or 'put'
-        use_cpp : bool
-            Use C++ acceleration if available (default: True)
         """
-        # Try C++ acceleration first if available and requested
-        if use_cpp and HESTON_CPP_AVAILABLE:
-            try:
-                result = heston_cpp.price_option(
-                    S0=self.params.S0,
-                    K=self.params.K,
-                    T=self.params.T,
-                    r=self.params.r,
-                    q=self.params.q,
-                    v0=self.params.v0,
-                    kappa=self.params.kappa,
-                    theta=self.params.theta,
-                    xi=self.params.xi,
-                    rho=self.params.rho,
-                    option_type=option_type
-                )
-                return result['price']
-            except Exception as e:
-                import warnings
-                warnings.warn(f"C++ pricing failed: {e}. Falling back to Python.")
-
-        # Fallback to pure Python implementation
+        # Pure Python implementation
         S0, K, T, r, q = self.params.S0, self.params.K, self.params.T, self.params.r, self.params.q
 
         try:

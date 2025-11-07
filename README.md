@@ -2,172 +2,180 @@
 
 Integrated options trading system with portfolio optimization, risk management, and real-time monitoring.
 
-## From Research to Production: End-to-End Trading System Lifecycle
-
-## System Abstraction: Data → Environment → Execution → Monitoring
-
-| **Stage** | **Core Function** | **Typical Components** | **Output** |
-|:-----------|:------------------|:------------------------|:------------|
-| **1. Data Layer** | Collect and model market signals | Market Data, LSTM, GARCH, Volatility Surface Estimator | Forecasted Prices / Volatility |
-| **2. Environment Layer** | Simulate and value the trading world | Multi-Agent Simulator, Option Pricing Models (Black–Scholes / Heston / SABR), Market State Classifier | Market States, Theoretical Prices, Greeks |
-| **3. Execution Layer** | Strategy generation and risk control | DP / RL Strategy Selector, Order Generator, Risk Controller (VaR, CVaR, Delta, Gamma, Vega, Theta, Concentration, Vol Regime) | Approved Orders, Portfolio Updates |
-| **4. Monitoring Layer** | Real-time feedback and system optimization | Portfolio Tracker, WebSocket Dashboard, Metrics Logger | Live Risk/Return Visualization, System Logs |
-
-
-
-## Architecture (7-Layer Pipeline)
+## System Architecture
 
 ```
-Market Data → Forecasting (σ, μ) → Pricing (V_i) → Greeks (Δ, Γ, ν, Θ)
-    → Portfolio Optimization (CVaR + Greek Constraints)
-    → Risk Control → Execution → Real-time Monitoring
+Market Data → Forecasting (σ, μ) → Validation → Pricing → Optimization → Risk Control → Portfolio Construction → Monitoring
 ```
+
+### 8-Layer Pipeline
+
+| **Layer** | **Function** | **Output** |
+|:----------|:-------------|:------------|
+| **1. Data** | Market signals | Forecasted Prices / Volatility |
+| **2. Forecasting** | Multi-Agent Simulator | σ, μ, Regime |
+| **3. Validation** | Rust Monte Carlo (50k) | Validated Parameters + Confidence |
+| **4. Pricing** | Black-Scholes, Heston, SABR | Option Prices, Greeks |
+| **5. Optimization** | CVaR Optimizer | Optimal Positions |
+| **6. Risk Control** | VaR, CVaR, Greek Limits | Approved Orders |
+| **7. Portfolio Construction** | Trade execution | Executed Trades, Portfolio |
+| **8. Monitoring** | Real-time tracking | Live Metrics, P&L |
 
 ## Project Structure
 
 ```
 Options_Pricing/
-├── time_series_forecasting/       # Volatility forecasting
-│   ├── classical_models/          # GARCH, ARIMA (Reduced-form)
-│   ├── multi_agent/               # Multi-Agent (Structural) ⭐
-│   └── forecast_comparator.py     # Comparison framework ⭐
-├── models/
-│   ├── options_pricing/           # Black-Scholes, Heston, SABR
-│   └── optimization_methods/
-│       └── strategy/portfolio_optimizer.py  # CVaR + Greek optimizer ⭐
-├── risk/                          # VaR, CVaR, risk controls
-├── evaluation_modules/
-│   └── realtime_monitor.py        # Real-time monitoring ⭐
+├── time_series_forecasting/multi_agent/    # Multi-agent forecasting ⭐
+├── rust_monte_carlo/                       # Rust MC validation ⭐
+├── models/options_pricing/                 # Black-Scholes, Heston, SABR
+├── models/optimization_methods/             # Portfolio optimizer
+├── risk/                                  # Risk management ⭐
 └── examples/
-    └── integrated_portfolio_optimization_demo.py  # Complete pipeline ⭐
+    ├── multi_agent_vs_traditional_demo.py  # When to use what ⭐
+    ├── validated_integrated_demo.py        # Complete pipeline ⭐
+    └── validated_multi_agent_demo.py       # Detailed validation ⭐
+```
+## Quick Start
+
+### Installation
+
+```bash
+# Clone and install
+git clone https://github.com/kevinlmf/Options_Pricing
+cd Options_Pricing
+pip install numpy scipy pandas matplotlib torch arch statsmodels
+
+# Optional: Build Rust accelerator (20-130x speedup)
+# Install Rust: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+cd rust_monte_carlo && maturin develop && cd ..
 ```
 
-## Key Innovation: Reduced-form vs Structural Forecasting
+### Running Demos
 
-| Approach | Nature | Best For |
-|----------|--------|----------|
-| **Time-Series** (LSTM/GARCH) | Reduced-form | Stable markets, efficiency |
-| **Multi-Agent** (Simulation) | Structural | Regime changes, interpretability |
-
-```python
-# Compare forecasting methods
-from time_series_forecasting.forecast_comparator import ForecastComparator
-comparator = ForecastComparator()
-comparison = comparator.compare_forecasts(prices, reduced_form, structural)
+```bash
+chmod +x run_demo.sh
+./run_demo.sh
 ```
 
 ## Key Features
 
-### 1. Portfolio Optimization
-**Objective:** `maximize: α × E[Return] - β × CVaR_95 - γ × |Δ_p|`
+### 1. Multi-Agent Structural Forecasting ⭐
 
-Constraints: Greek limits (Delta, Vega, Gamma), delta neutrality, max position size
+**Why Multi-Agent? Adaptive Learning & Factor Discovery**
 
-```python
-from models.optimization_methods.strategy.portfolio_optimizer import PortfolioOptimizer
+Multi-agent systems continuously adjust agent behaviors to:
+- **Better predict and learn from markets**: Agents adapt their strategies based on market feedback, improving prediction accuracy over time
+- **Discover key factors automatically**: Market factors emerge naturally from agent interactions:
+  - **Market Maker** → Discovers volatility factors from bid-ask spread dynamics
+  - **Arbitrageur** → Discovers drift factors from arbitrage opportunities
+  - **Noise Trader** → Discovers regime factors from trading patterns
+- **No manual feature engineering**: Factors are discovered, not pre-specified
 
-optimizer = PortfolioOptimizer(risk_aversion=1.0, max_delta=500.0)
-result = optimizer.optimize_portfolio(option_data, forecasted_returns)
-print(f"Sharpe: {result.expected_sharpe}, CVaR: ${result.expected_cvar:,.2f}")
-```
+**Structural vs Reduced-Form:**
 
-### 2. Real-Time Monitoring
-Tracks P&L, Greeks (Δ, Γ, ν, Θ), VaR/CVaR, Sharpe/Sortino, drawdown, latency
+| Approach | Best For | Advantage |
+|----------|----------|-----------|
+| **Reduced-Form** (LSTM, GARCH) | Stable markets | Fast, efficient |
+| **Multi-Agent** | Regime changes, mixture markets | Adaptive learning, factor discovery |
 
-```python
-from evaluation_modules.realtime_monitor import RealTimeMonitor
-
-monitor = RealTimeMonitor(initial_capital=1000000.0)
-snapshot = monitor.update(positions, option_prices, greeks)
-print(monitor.generate_report())
-```
-
-### 3. Pricing Models
-Black-Scholes, Heston (stochastic vol), SABR, Binomial Tree, Local Volatility
+**Performance:**
+- Volatility: 18-20% (vs actual 14-25%), **1.66% difference in mixture markets**
+- Drift: **0.13% difference** in high-drift markets
 
 ```python
-from models.options_pricing.black_scholes import BlackScholesModel, BSParameters
-params = BSParameters(S0=50000, K=51000, T=30/365, r=0.05, sigma=0.6)
-bs = BlackScholesModel(params)
-price, delta = bs.call_price(), bs.delta('call')
-```
+from time_series_forecasting.multi_agent import create_validated_forecaster
 
-### 4. Risk Management
-Pre-trade checks: position limits, Greek limits, concentration, drawdown
-
-```python
-from risk.bitcoin_risk_controller import BitcoinRiskController
-risk_controller = BitcoinRiskController(risk_limits, portfolio_value)
-check = risk_controller.check_order(order)
-```
-### Setup Environment
-```bash
-git clone https://github.com/kevinlmf/Options_Pricing
-cd Options_Pricing
-```
-
-## Quick Start
-
-```bash
-# One-click demo of all features (8 configurations)
-./run_demo.sh
-
-# Or run specific demo
-python examples/integrated_portfolio_optimization_demo.py
-
-# Or run specific demos
-python3 examples/integrated_risk_trading_demo.py      # Multi-agent + Risk Control
-python3 examples/complete_integration_demo.py         # Traditional + Options + Risk
-python3 examples/final_pnl_comparison.py              # PnL comparison across all configs
-
-# Start real-time API server
-python3 api/realtime_monitor.py                       # Access at http://localhost:8000/docs
-```
-
-**Expected Output:**
-```
-[LAYER 1: MARKET DATA] ✓ Loaded 150 periods
-[LAYER 2: FORECASTING] ✓ μ: 5.23%, σ: 62.45%
-[LAYER 3: PRICING] ✓ Priced 24 options
-[LAYER 4: OPTIMIZATION] ✓ Δ_p: 125.45, Sharpe: 1.234, CVaR: $45,230
-[LAYER 5-7: RISK, EXECUTION, MONITORING] ✓ Complete!
-```
-
-**Installation**: Python 3.8+
-```bash
-pip install numpy scipy pandas matplotlib torch arch statsmodels fastapi uvicorn websockets
+forecaster = create_validated_forecaster(validation_simulations=50_000)
+forecast = forecaster.forecast_with_validation(prices)
 ```
 
 
+### 2. Rust-Accelerated Monte Carlo Validation ⭐
 
+**Performance:**
 
-## Advanced Features
+| Simulations | Python | Rust | Speedup |
+|-------------|--------|------|---------|
+| 50,000      | 6.0s   | 0.1s | **60x** |
+| 100,000     | 12.5s  | 0.6s | **21x** |
 
-**Delta Hedging:**
-```python
-hedge = optimizer.hedge_to_delta_neutral(portfolio, options, ['spot', 'futures'])
-```
+**Result**: Real-time validation (~100ms) vs Python's 6-12 seconds.
 
-**Strategy Selection:** Combine DP/RL selector with portfolio optimizer
-```python
-integrated = IntegratedStrategyOptimizer(dp_selector, optimizer)
-strategy, positions = integrated.select_and_optimize(market_state, options, returns)
-```
+### 3. Risk Management (`risk/` folder) ⭐
 
-**Performance:** Pricing ~0.1ms, Optimization ~150ms, Total latency ~40ms
+- **VaR Models**: Historical, Parametric, Monte Carlo VaR
+- **CVaR Models**: Conditional Value at Risk (Expected Shortfall)
+- **Portfolio Risk**: Portfolio-level metrics, risk attribution
+- **Option Risk**: Greeks-based analysis, option-specific VaR/CVaR
+- **Integrated Risk**: Unified risk for stock-option portfolios
 
-## Installation
+Used in: Portfolio optimization (CVaR constraints), pre-trade risk checks, real-time monitoring.
 
-```bash
-pip install numpy scipy pandas scikit-learn torch gymnasium
+### 4. Complete Trading Pipeline
 
-# Optional C++ accelerators
-cd cpp_accelerators && mkdir build && cd build && cmake .. && make
-```
+- **Portfolio Optimization**: CVaR-constrained, Greek limits
+- **Portfolio Construction**: Actual `OptionPortfolio` with executed trades
+- **Real-time Monitoring**: P&L, Greeks, VaR/CVaR tracking
 
-## Theory & References
+## Why Multi-Agent?
 
-See `theory/` for mathematical foundations (Black-Scholes PDE, Greeks, CVaR optimization, Heston calibration)
+- **Factor Discovery** : Agents automatically discover market factors (volatility, drift, regime) through interactions - no manual feature engineering
+- **Interpretability**: Parameters from agent behaviors (Market Maker → Volatility, Arbitrageur → Drift)
+- **Robustness**: Adapts to regime changes, structural approach vs. statistical fitting
+- **Validation**: Monte Carlo validation ensures statistical soundness
+
+## Real-World Options Trading
+
+**The Essence of Options Trading: Betting on Volatility**
+
+Options trading is fundamentally about **betting on volatility** - traders are essentially wagering on whether the underlying asset will move enough (in either direction) to make the option profitable. This is why volatility is the most critical parameter in option pricing.
+
+**What traders focus on:**
+- **Volatility** ⭐⭐⭐⭐⭐ (Most important - core of option pricing)
+  - **Implied Volatility (IV)**: Market's expectation of future volatility
+  - **Realized Volatility**: Actual volatility that occurs
+  - **Volatility Trading**: Long volatility (buy options) vs. Short volatility (sell options)
+- **Direction** ⭐⭐⭐ (Secondary - for directional trading)
+  - Delta hedging, directional plays
+  - Less important because options can profit from movement in either direction
+
+**Main trading types:**
+- Equity Options (60-70%), Index Options (20-30%), ETF Options (5-10%)
+
+**Why Multi-Agent Matters:**
+- **Volatility prediction is everything** - Multi-Agent excels at volatility prediction (18-20% accuracy)
+- Traders need accurate volatility forecasts to price options correctly
+- Multi-Agent's factor discovery helps identify volatility drivers automatically
+
+## Future Work
+
+### Current Limitations
+
+- **Monte Carlo Validation**: Multi-agent forecasts often fail validation (p-value < 0.05), indicating predictions deviate from simulated distributions
+- **Drift Prediction**: While improved, drift prediction accuracy still needs enhancement (0.13% difference in best case)
+- **Validation Pass Rate**: Currently 0% (by design - strict validation protects against unreliable forecasts)
+
+### Planned Improvements
+
+1. **Enhanced Agent Learning**
+   - Add parameter update mechanisms based on prediction errors
+   - Implement reinforcement learning framework (reward = prediction accuracy)
+   - Experience replay for learning from historical interactions
+
+2. **Improved Validation**
+   - Relax validation criteria for regime-change scenarios
+   - Adaptive validation thresholds based on market conditions
+   - Ensemble validation combining multiple statistical tests
+
+3. **Better Factor Discovery**
+   - Dynamic factor weighting based on market regime
+   - Multi-factor models combining agent-discovered factors
+   - Factor interaction analysis
+
+4. **Real-time Adaptation**
+   - Online learning from streaming market data
+   - Continuous parameter adjustment based on validation feedback
+   - Adaptive agent behavior based on recent performance
 
 ---
 

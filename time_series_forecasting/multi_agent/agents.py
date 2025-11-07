@@ -43,11 +43,18 @@ class BaseAgent(ABC):
         pass
 
     @abstractmethod
-    def infer_parameter(self, action_history: List[Dict]) -> float:
+    def infer_parameter(self, action_history: List[Dict], **kwargs) -> float:
         """
         Infer market parameter from action history.
 
         This is the key structural insight: actions → parameters
+        
+        Parameters:
+        -----------
+        action_history : List[Dict]
+            History of agent actions
+        **kwargs : dict
+            Additional parameters (e.g., historical_returns for drift calculation)
         """
         pass
 
@@ -87,8 +94,10 @@ class MarketMaker(BaseAgent):
             realized_vol = np.std(recent_returns)
 
             # Adjust spread based on volatility and inventory risk
+            # IMPROVED: Reduced coefficient from 10 to 2 to avoid extreme spreads
+            # Spread should be proportional to volatility, but not too sensitive
             inventory_penalty = abs(self.state.inventory) * 0.001
-            spread = self.target_spread + realized_vol * 10 + inventory_penalty
+            spread = self.target_spread + realized_vol * 2 + inventory_penalty
         else:
             spread = self.target_spread
 
@@ -117,21 +126,33 @@ class MarketMaker(BaseAgent):
         Intuition: Market makers widen spreads when they perceive risk.
         """
         if len(action_history) == 0:
-            return 0.5  # Default volatility
+            return 0.15  # Default volatility (15%, more reasonable)
 
         spreads = [action['spread'] for action in action_history if 'spread' in action]
 
         if len(spreads) < 2:
-            return 0.5
+            return 0.15  # Default volatility (15%, more reasonable)
 
         mean_spread = np.mean(spreads)
         var_spread = np.var(spreads)
 
         # Structural mapping: spread dynamics → volatility
-        # Calibrated heuristic (in practice, estimated from historical data)
-        implied_vol = 0.2 + mean_spread * 20 + var_spread * 50
+        # FINAL CALIBRATION: Coefficients tuned to match actual market volatility
+        # With spread coefficient = 2 in decide_action, typical spread ≈ 0.02-0.03
+        # Using coefficients (1.5, 3) to produce predictions in 15-25% range
+        base_vol = 0.15  # 15% base volatility (matches typical market)
+        implied_vol = base_vol + mean_spread * 1.5 + var_spread * 3
 
-        return np.clip(implied_vol, 0.1, 2.0)
+        # Adaptive clipping: more reasonable upper bound
+        # Normal market: 50%, Volatile: 100%, Extreme: 200%
+        if mean_spread < 0.01:
+            max_vol = 0.5  # 50% for normal markets
+        elif mean_spread < 0.05:
+            max_vol = 1.0  # 100% for volatile markets
+        else:
+            max_vol = 2.0  # 200% for extreme markets
+        
+        return np.clip(implied_vol, 0.05, max_vol)
 
 
 class Arbitrageur(BaseAgent):
@@ -145,13 +166,16 @@ class Arbitrageur(BaseAgent):
     Structural Inference:
     - trading_intensity → implied_drift
 
-    Model: μ_implied = f(trade_frequency, trade_direction)
+    Model: μ_implied = f(trade_frequency, trade_direction, historical_drift, momentum)
+    
+    IMPROVED: Now considers multiple factors for better drift prediction
     """
 
     def __init__(self, risk_aversion: float = 0.5, threshold: float = 0.02):
         super().__init__(risk_aversion)
         self.threshold = threshold  # Minimum profit threshold
         self.trade_count = 0
+        self.historical_prices = []  # Store prices for drift calculation
 
     def decide_action(self, market_state: Dict) -> Dict:
         """
@@ -195,14 +219,29 @@ class Arbitrageur(BaseAgent):
         self.state.action_history.append(action)
         return action
 
-    def infer_parameter(self, action_history: List[Dict]) -> float:
+    def infer_parameter(self, action_history: List[Dict], historical_returns: Optional[np.ndarray] = None) -> float:
         """
         Infer implied drift from arbitrage activity.
-
+        
+        IMPROVED: Enhanced drift prediction with multiple factors:
+        1. Trade frequency and direction (structural signal)
+        2. Historical drift (empirical baseline) - PRIORITY if available
+        3. Momentum strength (price momentum)
+        
         Structural Model:
-        μ_implied = α × (trade_freq) × sign(net_direction)
-
-        Intuition: Arbitrageurs are more active when they detect exploitable trends.
+        μ_implied = α × (trade_freq × net_direction) + β × historical_drift + γ × momentum
+        
+        Parameters:
+        -----------
+        action_history : List[Dict]
+            History of agent actions
+        historical_returns : Optional[np.ndarray]
+            Historical returns for direct drift calculation (more accurate)
+        
+        Intuition: 
+        - Arbitrageurs are more active when they detect exploitable trends
+        - Historical drift provides empirical baseline (most reliable)
+        - Momentum captures recent price trends
         """
         if len(action_history) == 0:
             return 0.0
@@ -216,10 +255,83 @@ class Arbitrageur(BaseAgent):
         sells = sum(1 for a in trades if a['type'] == 'sell')
         net_direction = (buys - sells) / max(len(trades), 1) if len(trades) > 0 else 0
 
-        # Structural mapping: activity → drift
-        # High frequency + directional bias → strong drift signal
-        implied_drift = trade_frequency * net_direction * 0.5
-
+        # Calculate momentum and historical drift
+        momentum = 0.0
+        historical_drift = 0.0
+        
+        # PRIORITY: Use historical_returns if provided (more accurate)
+        if historical_returns is not None and len(historical_returns) > 0:
+            # Use full historical data for drift calculation
+            historical_drift = np.mean(historical_returns) * 252  # Annualized
+            
+            # Short-term momentum (last 20 periods)
+            if len(historical_returns) >= 20:
+                momentum = np.mean(historical_returns[-20:]) * 252
+            else:
+                momentum = historical_drift
+        
+        # FALLBACK: Calculate from action history if no historical_returns
+        elif len(action_history) > 1:
+            # Extract prices from action history
+            prices = [a.get('price', 0) for a in action_history if 'price' in a and a.get('price', 0) > 0]
+            
+            if len(prices) > 1:
+                # Calculate returns
+                price_array = np.array(prices)
+                returns = np.diff(np.log(price_array))
+                
+                if len(returns) > 0:
+                    # Short-term momentum (last 5 periods, annualized)
+                    if len(returns) >= 5:
+                        momentum = np.mean(returns[-5:]) * 252
+                    else:
+                        momentum = np.mean(returns) * 252
+                    
+                    # Historical drift (full period, annualized)
+                    historical_drift = np.mean(returns) * 252
+                    
+                    # Also use momentum from action if available
+                    momentums = [a.get('momentum', 0) for a in action_history if 'momentum' in a]
+                    if len(momentums) > 0:
+                        avg_momentum = np.mean(momentums)
+                        if abs(avg_momentum) > 1e-6:
+                            # Convert daily momentum to annual
+                            momentum_from_actions = avg_momentum * 252
+                            # Blend with price-based momentum
+                            momentum = 0.7 * momentum + 0.3 * momentum_from_actions
+        
+        # IMPROVED: Multi-factor drift prediction
+        # Factor 1: Structural signal (increased coefficient from 0.5 to 2.0)
+        structural_signal = trade_frequency * net_direction * 2.0
+        
+        # Factor 2: Historical drift (PRIORITY if available)
+        # If we have historical drift from full data, use it as primary signal
+        if abs(historical_drift) > 1e-6:
+            # Historical drift is more reliable, weight it higher
+            if historical_returns is not None:
+                # Use historical drift as primary (80%), structural as secondary (20%)
+                implied_drift = 0.8 * historical_drift + 0.2 * structural_signal
+            else:
+                # From action history, blend more evenly
+                implied_drift = 0.6 * historical_drift + 0.4 * structural_signal
+        else:
+            # Only structural signal available
+            implied_drift = structural_signal
+        
+        # Factor 3: Momentum adjustment (if strong momentum detected and consistent with historical)
+        # Only adjust if momentum is strong AND in same direction as historical drift
+        # This prevents negative momentum from overriding positive historical drift
+        if abs(momentum) > 0.05:  # Strong momentum (> 5% annualized)
+            # Check if momentum is consistent with historical drift direction
+            if (historical_drift > 0 and momentum > 0) or (historical_drift < 0 and momentum < 0):
+                # Momentum confirms historical drift, blend them
+                implied_drift = 0.7 * implied_drift + 0.3 * momentum
+            elif abs(momentum) > abs(historical_drift) * 2:
+                # Momentum is very strong and opposite, might indicate regime change
+                # But still trust historical drift more (70% historical, 30% momentum)
+                implied_drift = 0.7 * implied_drift + 0.3 * momentum * 0.5  # Dampened momentum
+            # Otherwise, ignore inconsistent momentum
+        
         return np.clip(implied_drift, -0.5, 0.5)
 
 
@@ -363,7 +475,11 @@ def simulate_agent_interaction(agents: List[BaseAgent],
     inferred_params = {}
     for agent in agents:
         agent_type = type(agent).__name__
-        param = agent.infer_parameter(agent.state.action_history)
+        # Pass historical returns to Arbitrageur for better drift calculation
+        if agent_type == 'Arbitrageur':
+            param = agent.infer_parameter(agent.state.action_history, historical_returns=returns)
+        else:
+            param = agent.infer_parameter(agent.state.action_history)
         inferred_params[agent_type] = param
 
     return {

@@ -19,12 +19,8 @@ from scipy.optimize import minimize
 from scipy.stats import norm
 from typing import Dict, Tuple, Optional
 
-# Try to import C++ accelerated module
-try:
-    import sabr_cpp
-    SABR_CPP_AVAILABLE = True
-except ImportError:
-    SABR_CPP_AVAILABLE = False
+# C++ acceleration removed - using pure Python implementation
+SABR_CPP_AVAILABLE = False
 class SABRModel:
     """
     SABR Model for Options Pricing
@@ -80,31 +76,14 @@ class SABRModel:
         assert self.nu >= 0, "Nu must be non-negative"
         assert self.T > 0, "Time to expiration must be positive"
 
-    def implied_volatility_hagan(self, use_cpp: bool = True) -> float:
+    def implied_volatility_hagan(self) -> float:
         """
         Calculate implied volatility using Hagan's approximation formula
-
-        Parameters:
-        -----------
-        use_cpp : bool
-            Use C++ acceleration if available (default: True)
 
         Returns:
         --------
         float : Implied volatility
         """
-        # Try C++ acceleration first if available and requested
-        if use_cpp and SABR_CPP_AVAILABLE:
-            try:
-                result = sabr_cpp.price_option(
-                    F=self.F, K=self.K, T=self.T, r=self.r,
-                    alpha=self.alpha, beta=self.beta, rho=self.rho, nu=self.nu,
-                    option_type='call'
-                )
-                return result['implied_vol']
-            except Exception:
-                pass  # Fallback to Python implementation
-
         F, K, T = self.F, self.K, self.T
         alpha, beta, rho, nu = self.alpha, self.beta, self.rho, self.nu
 
@@ -167,7 +146,7 @@ class SABRModel:
 
         return term1 * term2
 
-    def price(self, option_type: str = 'call', use_cpp: bool = True) -> float:
+    def price(self, option_type: str = 'call') -> float:
         """
         Calculate option price using SABR implied volatility
 
@@ -175,27 +154,13 @@ class SABRModel:
         -----------
         option_type : str
             'call' or 'put'
-        use_cpp : bool
-            Use C++ acceleration if available (default: True)
 
         Returns:
         --------
         float : Option price
         """
-        # Try C++ acceleration first if available and requested
-        if use_cpp and SABR_CPP_AVAILABLE:
-            try:
-                result = sabr_cpp.price_option(
-                    F=self.F, K=self.K, T=self.T, r=self.r,
-                    alpha=self.alpha, beta=self.beta, rho=self.rho, nu=self.nu,
-                    option_type=option_type
-                )
-                return result['price']
-            except Exception:
-                pass  # Fallback to Python implementation
-
         # Get implied volatility from SABR
-        implied_vol = self.implied_volatility_hagan(use_cpp=False)
+        implied_vol = self.implied_volatility_hagan()
 
         # Use Black-Scholes formula with SABR implied vol
         S = self.F * np.exp(-self.r * self.T)  # Convert forward to spot
