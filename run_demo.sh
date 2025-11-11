@@ -21,6 +21,11 @@ echo ""
 
 cd "$(dirname "$0")"
 python3 examples/validated_integrated_demo.py
+echo ""
+echo "=================================================================================="
+echo "Running Adaptive Multi-Agent Training Loop..."
+echo "=================================================================================="
+python3 examples/multi_agent_rl_training_demo.py
 
 echo ""
 echo "=================================="

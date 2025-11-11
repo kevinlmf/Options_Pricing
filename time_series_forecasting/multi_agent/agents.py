@@ -26,9 +26,11 @@ class AgentState:
 class BaseAgent(ABC):
     """Base class for all agent types"""
 
-    def __init__(self, risk_aversion: float = 1.0):
+    def __init__(self, risk_aversion: float = 1.0, max_validation_history: int = 200):
         self.risk_aversion = risk_aversion
         self.state = AgentState()
+        self.max_validation_history = max_validation_history
+        self.validation_history: List[Dict[str, float]] = []
 
     @abstractmethod
     def decide_action(self, market_state: Dict) -> Dict:
@@ -58,6 +60,16 @@ class BaseAgent(ABC):
         """
         pass
 
+    def record_validation(self, record: Dict[str, float]):
+        """Store validation feedback for learning/analysis."""
+        if len(self.validation_history) >= self.max_validation_history:
+            self.validation_history.pop(0)
+        self.validation_history.append(record)
+
+    def update_from_validation(self, *args, **kwargs):
+        """Optional hook for adaptive parameter updates."""
+        return
+
 
 class MarketMaker(BaseAgent):
     """
@@ -76,6 +88,11 @@ class MarketMaker(BaseAgent):
     def __init__(self, risk_aversion: float = 1.0, target_spread: float = 0.01):
         super().__init__(risk_aversion)
         self.target_spread = target_spread
+        self.base_vol = 0.15
+        self.vol_coefficient_mean = 1.5
+        self.vol_coefficient_var = 3.0
+        self.max_vol_caps = (0.5, 1.0, 2.0)
+        self.volatility_learning_rate = 0.1
 
     def decide_action(self, market_state: Dict) -> Dict:
         """
@@ -140,19 +157,49 @@ class MarketMaker(BaseAgent):
         # FINAL CALIBRATION: Coefficients tuned to match actual market volatility
         # With spread coefficient = 2 in decide_action, typical spread ≈ 0.02-0.03
         # Using coefficients (1.5, 3) to produce predictions in 15-25% range
-        base_vol = 0.15  # 15% base volatility (matches typical market)
-        implied_vol = base_vol + mean_spread * 1.5 + var_spread * 3
+        implied_vol = self.base_vol + mean_spread * self.vol_coefficient_mean + var_spread * self.vol_coefficient_var
 
         # Adaptive clipping: more reasonable upper bound
         # Normal market: 50%, Volatile: 100%, Extreme: 200%
         if mean_spread < 0.01:
-            max_vol = 0.5  # 50% for normal markets
+            max_vol = self.max_vol_caps[0]  # 50% for normal markets
         elif mean_spread < 0.05:
-            max_vol = 1.0  # 100% for volatile markets
+            max_vol = self.max_vol_caps[1]  # 100% for volatile markets
         else:
-            max_vol = 2.0  # 200% for extreme markets
+            max_vol = self.max_vol_caps[2]  # 200% for extreme markets
         
         return np.clip(implied_vol, 0.05, max_vol)
+
+    def update_from_validation(self,
+                               predicted_vol: float,
+                               realized_vol: float,
+                               learning_rate: Optional[float] = None):
+        """Adapt volatility mapping based on validation feedback."""
+        if learning_rate is None:
+            learning_rate = self.volatility_learning_rate
+
+        if not np.isfinite(predicted_vol) or not np.isfinite(realized_vol) or realized_vol <= 0:
+            return
+
+        error = realized_vol - predicted_vol
+        adjustment = learning_rate * error
+        abs_error = abs(error)
+
+        if abs_error < 0.01:
+            adjustment *= 0.5
+        elif abs_error > 0.05:
+            adjustment *= min(2.0, 1.0 + abs_error)
+
+        # Update structural coefficients conservatively
+        self.base_vol = float(np.clip(self.base_vol + 0.5 * adjustment, 0.05, 1.5))
+        self.vol_coefficient_mean = float(np.clip(self.vol_coefficient_mean + 2.0 * adjustment, 0.1, 10.0))
+        self.vol_coefficient_var = float(np.clip(self.vol_coefficient_var + 5.0 * adjustment, 0.5, 25.0))
+
+        self.record_validation({
+            'predicted_vol': float(predicted_vol),
+            'realized_vol': float(realized_vol),
+            'error': float(error)
+        })
 
 
 class Arbitrageur(BaseAgent):
@@ -176,6 +223,10 @@ class Arbitrageur(BaseAgent):
         self.threshold = threshold  # Minimum profit threshold
         self.trade_count = 0
         self.historical_prices = []  # Store prices for drift calculation
+        self.historical_weight_primary = 0.8
+        self.historical_weight_fallback = 0.6
+        self.momentum_blend = 0.3
+        self.learning_rate = 0.05
 
     def decide_action(self, market_state: Dict) -> Dict:
         """
@@ -309,11 +360,10 @@ class Arbitrageur(BaseAgent):
         if abs(historical_drift) > 1e-6:
             # Historical drift is more reliable, weight it higher
             if historical_returns is not None:
-                # Use historical drift as primary (80%), structural as secondary (20%)
-                implied_drift = 0.8 * historical_drift + 0.2 * structural_signal
+                weight = self.historical_weight_primary
             else:
-                # From action history, blend more evenly
-                implied_drift = 0.6 * historical_drift + 0.4 * structural_signal
+                weight = self.historical_weight_fallback
+            implied_drift = weight * historical_drift + (1 - weight) * structural_signal
         else:
             # Only structural signal available
             implied_drift = structural_signal
@@ -325,14 +375,55 @@ class Arbitrageur(BaseAgent):
             # Check if momentum is consistent with historical drift direction
             if (historical_drift > 0 and momentum > 0) or (historical_drift < 0 and momentum < 0):
                 # Momentum confirms historical drift, blend them
-                implied_drift = 0.7 * implied_drift + 0.3 * momentum
+                blend = self.momentum_blend
+                implied_drift = (1 - blend) * implied_drift + blend * momentum
             elif abs(momentum) > abs(historical_drift) * 2:
                 # Momentum is very strong and opposite, might indicate regime change
                 # But still trust historical drift more (70% historical, 30% momentum)
-                implied_drift = 0.7 * implied_drift + 0.3 * momentum * 0.5  # Dampened momentum
+                blend = self.momentum_blend
+                implied_drift = (1 - blend) * implied_drift + blend * momentum * 0.5  # Dampened momentum
             # Otherwise, ignore inconsistent momentum
         
         return np.clip(implied_drift, -0.5, 0.5)
+
+    def update_from_validation(self,
+                               predicted_drift: float,
+                               realized_drift: float,
+                               learning_rate: Optional[float] = None):
+        """Adapt drift inference parameters based on validation feedback."""
+        if learning_rate is None:
+            learning_rate = self.learning_rate
+
+        if not np.isfinite(predicted_drift) or not np.isfinite(realized_drift):
+            return
+
+        error = realized_drift - predicted_drift
+        abs_error = abs(error)
+
+        rate_adjust = learning_rate
+        if abs_error < 0.01:
+            rate_adjust *= 0.5
+        elif abs_error > 0.05:
+            rate_adjust *= min(2.0, 1.0 + abs_error * 2)
+
+        # Lower threshold when realized drift exceeds predictions (encourage activity)
+        self.threshold = float(np.clip(self.threshold - rate_adjust * error, 0.005, 0.15))
+
+        # Adjust weights between historical and structural signals
+        self.historical_weight_primary = float(np.clip(
+            self.historical_weight_primary - rate_adjust * error * 0.1, 0.5, 0.95))
+        self.historical_weight_fallback = float(np.clip(
+            self.historical_weight_fallback - rate_adjust * error * 0.1, 0.4, 0.9))
+
+        # Allow more responsiveness to momentum when persistent gaps remain
+        self.momentum_blend = float(np.clip(
+            self.momentum_blend + rate_adjust * error * 0.1, 0.1, 0.6))
+
+        self.record_validation({
+            'predicted_drift': float(predicted_drift),
+            'realized_drift': float(realized_drift),
+            'error': float(error)
+        })
 
 
 class NoiseTrader(BaseAgent):

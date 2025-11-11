@@ -136,3 +136,5 @@ forecaster = ValidatedMultiAgentForecaster(
 2. **多因子模型**：不仅考虑 spread，还考虑其他市场指标
 3. **动态调整**：根据验证结果动态调整 agent 参数
 
+
+

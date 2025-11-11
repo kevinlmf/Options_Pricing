@@ -5,6 +5,10 @@
 
 set -e
 
+# Ensure the script runs from the rust_monte_carlo directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
+
 echo "🔨 Building Rust Monte Carlo Validator..."
 
 # Check if Rust is installed

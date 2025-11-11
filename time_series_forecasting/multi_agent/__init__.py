@@ -16,13 +16,19 @@ try:
         ValidatedMultiAgentForecaster,
         create_validated_forecaster
     )
+    from .adaptive_coordinator import (
+        AdaptiveAgentCoordinator,
+        TrainingStepResult
+    )
     __all__ = [
         'MultiAgentForecaster',
         'ValidatedMultiAgentForecaster',
         'create_validated_forecaster',
         'MarketMaker',
         'Arbitrageur',
-        'NoiseTrader'
+        'NoiseTrader',
+        'AdaptiveAgentCoordinator',
+        'TrainingStepResult'
     ]
 except ImportError:
     # Rust module not available

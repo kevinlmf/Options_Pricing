@@ -1,6 +1,24 @@
 # Options Pricing System
 
-Integrated options trading system with portfolio optimization, risk management, and real-time monitoring.
+## Core Purpose
+
+**Finding the Optimal Measure that Best Explains Market Price Dynamics**
+
+This project aims to discover a **measure-theoretic framework** that:
+
+1. **Best Explains Market Price Movements**: Identifies the probability measure (P, Q, Q*) that most accurately captures real market dynamics
+2. **Predicts Market Patterns**: Provides superior forecasting accuracy for volatility, drift, and regime changes
+3. **Discovers Factors & Trends**: Automatically identifies market factors (volatility drivers, drift components, regime indicators) and tracks their evolution over time
+4. **Balances Accuracy & Interpretability**: Combines predictive power with structural understanding—explains *why* prices move, not just *what* happens
+5. **Converges to Risk-Neutral Pricing**: Ensures the discovered measure converges to risk-neutral (Q) pricing in the long run, maintaining no-arbitrage consistency
+
+**Key Innovation**: Multi-agent structural modeling with adaptive learning, validated by Monte Carlo simulation, converging toward a unified measure that explains both real-world dynamics (P) and risk-neutral pricing (Q).
+
+---
+
+## System Overview
+
+Integrated options trading system with portfolio optimization, risk management, and real-time monitoring, built around the core goal of measure discovery and convergence.
 
 ## System Architecture
 
@@ -25,29 +43,32 @@ Market Data → Forecasting (σ, μ) → Validation → Pricing → Optimization
 
 ```
 Options_Pricing/
-├── time_series_forecasting/multi_agent/    # Multi-agent forecasting ⭐
-├── rust_monte_carlo/                       # Rust MC validation ⭐
+├── time_series_forecasting/multi_agent/    # Multi-agent forecasting 
+├── rust_monte_carlo/                       # Rust MC validation 
 ├── models/options_pricing/                 # Black-Scholes, Heston, SABR
 ├── models/optimization_methods/             # Portfolio optimizer
-├── risk/                                  # Risk management ⭐
+├── risk/                                  # Risk management 
 └── examples/
-    ├── multi_agent_vs_traditional_demo.py  # When to use what ⭐
-    ├── validated_integrated_demo.py        # Complete pipeline ⭐
-    └── validated_multi_agent_demo.py       # Detailed validation ⭐
+    ├── multi_agent_vs_traditional_demo.py  # When to use what 
+    ├── validated_integrated_demo.py        # Complete pipeline 
+    └── validated_multi_agent_demo.py       # Detailed validation 
 ```
 ## Quick Start
 
 ### Installation
 
 ```bash
-# Clone and install
+# Clone the repo
 git clone https://github.com/kevinlmf/Options_Pricing
 cd Options_Pricing
-pip install numpy scipy pandas matplotlib torch arch statsmodels
 
-# Optional: Build Rust accelerator (20-130x speedup)
-# Install Rust: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-cd rust_monte_carlo && maturin develop && cd ..
+# Install Python dependencies pinned to the NumPy 1.26 ABI
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+
+# Build the Rust Monte Carlo accelerator (required for demos; 20-130x speedup)
+# Install Rust first if needed: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+./rust_monte_carlo/build.sh
 ```
 
 ### Running Demos
@@ -57,9 +78,24 @@ chmod +x run_demo.sh
 ./run_demo.sh
 ```
 
-## Key Features
+> **Note:** Run `./rust_monte_carlo/build.sh` once per machine (and whenever the Rust code changes) before executing the demos so that the Monte Carlo validator is available.
 
-### 1. Multi-Agent Structural Forecasting ⭐
+## Key Features
+**The Essence of Options Trading: Betting on Volatility**
+
+Options trading is fundamentally about **betting on volatility** - traders are essentially wagering on whether the underlying asset will move enough (in either direction) to make the option profitable. This is why volatility is the most critical parameter in option pricing.
+
+**What traders focus on:**
+- **Volatility**  
+- **Implied Volatility (IV)**: Market's expectation of future volatility
+  - **Realized Volatility**: Actual volatility that occurs
+  - **Volatility Trading**: Long volatility (buy options) vs. Short volatility (sell options)
+- **Direction** ⭐⭐⭐ (Secondary - for directional trading)
+  - Delta hedging, directional plays
+  - Less important because options can profit from movement in either direction
+
+
+### 1. Multi-Agent Structural Forecasting 
 
 **Why Multi-Agent? Adaptive Learning & Factor Discovery**
 
@@ -71,26 +107,8 @@ Multi-agent systems continuously adjust agent behaviors to:
   - **Noise Trader** → Discovers regime factors from trading patterns
 - **No manual feature engineering**: Factors are discovered, not pre-specified
 
-**Structural vs Reduced-Form:**
 
-| Approach | Best For | Advantage |
-|----------|----------|-----------|
-| **Reduced-Form** (LSTM, GARCH) | Stable markets | Fast, efficient |
-| **Multi-Agent** | Regime changes, mixture markets | Adaptive learning, factor discovery |
-
-**Performance:**
-- Volatility: 18-20% (vs actual 14-25%), **1.66% difference in mixture markets**
-- Drift: **0.13% difference** in high-drift markets
-
-```python
-from time_series_forecasting.multi_agent import create_validated_forecaster
-
-forecaster = create_validated_forecaster(validation_simulations=50_000)
-forecast = forecaster.forecast_with_validation(prices)
-```
-
-
-### 2. Rust-Accelerated Monte Carlo Validation ⭐
+### 2. Rust-Accelerated Monte Carlo Validation 
 
 **Performance:**
 
@@ -101,7 +119,7 @@ forecast = forecaster.forecast_with_validation(prices)
 
 **Result**: Real-time validation (~100ms) vs Python's 6-12 seconds.
 
-### 3. Risk Management (`risk/` folder) ⭐
+### 3. Risk Management (`risk/` folder) 
 
 - **VaR Models**: Historical, Parametric, Monte Carlo VaR
 - **CVaR Models**: Conditional Value at Risk (Expected Shortfall)
@@ -110,42 +128,6 @@ forecast = forecaster.forecast_with_validation(prices)
 - **Integrated Risk**: Unified risk for stock-option portfolios
 
 Used in: Portfolio optimization (CVaR constraints), pre-trade risk checks, real-time monitoring.
-
-### 4. Complete Trading Pipeline
-
-- **Portfolio Optimization**: CVaR-constrained, Greek limits
-- **Portfolio Construction**: Actual `OptionPortfolio` with executed trades
-- **Real-time Monitoring**: P&L, Greeks, VaR/CVaR tracking
-
-## Why Multi-Agent?
-
-- **Factor Discovery** : Agents automatically discover market factors (volatility, drift, regime) through interactions - no manual feature engineering
-- **Interpretability**: Parameters from agent behaviors (Market Maker → Volatility, Arbitrageur → Drift)
-- **Robustness**: Adapts to regime changes, structural approach vs. statistical fitting
-- **Validation**: Monte Carlo validation ensures statistical soundness
-
-## Real-World Options Trading
-
-**The Essence of Options Trading: Betting on Volatility**
-
-Options trading is fundamentally about **betting on volatility** - traders are essentially wagering on whether the underlying asset will move enough (in either direction) to make the option profitable. This is why volatility is the most critical parameter in option pricing.
-
-**What traders focus on:**
-- **Volatility** ⭐⭐⭐⭐⭐ (Most important - core of option pricing)
-  - **Implied Volatility (IV)**: Market's expectation of future volatility
-  - **Realized Volatility**: Actual volatility that occurs
-  - **Volatility Trading**: Long volatility (buy options) vs. Short volatility (sell options)
-- **Direction** ⭐⭐⭐ (Secondary - for directional trading)
-  - Delta hedging, directional plays
-  - Less important because options can profit from movement in either direction
-
-**Main trading types:**
-- Equity Options (60-70%), Index Options (20-30%), ETF Options (5-10%)
-
-**Why Multi-Agent Matters:**
-- **Volatility prediction is everything** - Multi-Agent excels at volatility prediction (18-20% accuracy)
-- Traders need accurate volatility forecasts to price options correctly
-- Multi-Agent's factor discovery helps identify volatility drivers automatically
 
 ## Future Work
 
