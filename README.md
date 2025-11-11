@@ -128,4 +128,4 @@ Used in: Portfolio optimization (CVaR constraints), pre-trade risk checks, real-
 
 ---
 
-MIT License | Explore interaction and uncertainty in both pricing and life, with hope even in the depth of winter☀️
+Explore interaction and uncertainty in both pricing and life, with hope even in the depth of winter☀️
