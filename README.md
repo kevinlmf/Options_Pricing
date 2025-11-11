@@ -8,9 +8,7 @@ This project aims to discover a **measure-theoretic framework** that:
 
 1. **Best Explains Market Price Movements**: Identifies the probability measure (P, Q, Q*) that most accurately captures real market dynamics
 2. **Predicts Market Patterns**: Provides superior forecasting accuracy for volatility, drift, and regime changes
-3. **Discovers Factors & Trends**: Automatically identifies market factors (volatility drivers, drift components, regime indicators) and tracks their evolution over time
-4. **Balances Accuracy & Interpretability**: Combines predictive power with structural understanding—explains *why* prices move, not just *what* happens
-5. **Converges to Risk-Neutral Pricing**: Ensures the discovered measure converges to risk-neutral (Q) pricing in the long run, maintaining no-arbitrage consistency
+3. **Converges to Risk-Neutral Pricing**: Ensures the discovered measure converges to risk-neutral (Q) pricing in the long run, maintaining no-arbitrage consistency
 
 **Key Innovation**: Multi-agent structural modeling with adaptive learning, validated by Monte Carlo simulation, converging toward a unified measure that explains both real-world dynamics (P) and risk-neutral pricing (Q).
 
@@ -81,18 +79,9 @@ chmod +x run_demo.sh
 > **Note:** Run `./rust_monte_carlo/build.sh` once per machine (and whenever the Rust code changes) before executing the demos so that the Monte Carlo validator is available.
 
 ## Key Features
-**The Essence of Options Trading: Betting on Volatility**
+**The Essence of Options Trading: Volatility**
 
-Options trading is fundamentally about **betting on volatility** - traders are essentially wagering on whether the underlying asset will move enough (in either direction) to make the option profitable. This is why volatility is the most critical parameter in option pricing.
-
-**What traders focus on:**
-- **Volatility**  
-- **Implied Volatility (IV)**: Market's expectation of future volatility
-  - **Realized Volatility**: Actual volatility that occurs
-  - **Volatility Trading**: Long volatility (buy options) vs. Short volatility (sell options)
-- **Direction** ⭐⭐⭐ (Secondary - for directional trading)
-  - Delta hedging, directional plays
-  - Less important because options can profit from movement in either direction
+Options trading is fundamentally about **volatility** - traders are essentially wagering on whether the underlying asset will move enough (in either direction) to make the option profitable. This is why volatility is the most critical parameter in option pricing.
 
 
 ### 1. Multi-Agent Structural Forecasting 
@@ -136,28 +125,6 @@ Used in: Portfolio optimization (CVaR constraints), pre-trade risk checks, real-
 - **Monte Carlo Validation**: Multi-agent forecasts often fail validation (p-value < 0.05), indicating predictions deviate from simulated distributions
 - **Drift Prediction**: While improved, drift prediction accuracy still needs enhancement (0.13% difference in best case)
 - **Validation Pass Rate**: Currently 0% (by design - strict validation protects against unreliable forecasts)
-
-### Planned Improvements
-
-1. **Enhanced Agent Learning**
-   - Add parameter update mechanisms based on prediction errors
-   - Implement reinforcement learning framework (reward = prediction accuracy)
-   - Experience replay for learning from historical interactions
-
-2. **Improved Validation**
-   - Relax validation criteria for regime-change scenarios
-   - Adaptive validation thresholds based on market conditions
-   - Ensemble validation combining multiple statistical tests
-
-3. **Better Factor Discovery**
-   - Dynamic factor weighting based on market regime
-   - Multi-factor models combining agent-discovered factors
-   - Factor interaction analysis
-
-4. **Real-time Adaptation**
-   - Online learning from streaming market data
-   - Continuous parameter adjustment based on validation feedback
-   - Adaptive agent behavior based on recent performance
 
 ---
 
