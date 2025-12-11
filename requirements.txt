@@ -8,6 +8,10 @@ matplotlib==3.8.3
 statsmodels==0.14.1
 arch==6.2.0
 
+# Machine learning (for factor importance analysis)
+scikit-learn>=1.3.0
+
 # Deep learning (optional; required for LSTM demos)
 torch==2.2.2
+
 

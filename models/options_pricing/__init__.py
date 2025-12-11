@@ -1,42 +1,33 @@
 """
-Options Pricing Models
+Options Pricing Layer - Layer 3.5
+=================================
 
-Collection of option pricing models including:
-- Black-Scholes (analytical)
-- Heston (stochastic volatility)
-- SABR (stochastic volatility)
-- Binomial Tree (numerical)
-- Local Volatility
+Advanced options pricing engine that integrates dual convergence volatility forecasts
+with stochastic volatility models (Heston/SABR) and Monte Carlo simulation.
+
+Key Features:
+- Dual convergence σ(t) as input to Heston/SABR models
+- Monte Carlo pricing using existing Rust engine
+- Implied volatility surface calibration
+- Volatility arbitrage signals (skew mispricing)
+- Enhanced Greeks calculation
+- Dynamic volatility hedging strategies
+
+This layer provides the 'pricing lens' for our dual convergence framework,
+complementing the factor allocation approach for complete options trading capability.
 """
 
-from .base_model import BaseModel, ModelParameters
-from .black_scholes import BlackScholesModel, BSParameters
-from .heston import HestonModel, HestonParameters
-from .sabr import SABRModel
-from .binomial_tree import BinomialTreeModel
-from .local_volatility import LocalVolatilityModel
-
-# Optional imports (may have dependencies not moved yet)
-try:
-    from .model_calibrator import ModelCalibrator
-except (ImportError, ModuleNotFoundError):
-    ModelCalibrator = None
-
-try:
-    from .implied_volatility import ImpliedVolatilityCalculator
-except ImportError:
-    ImpliedVolatilityCalculator = None
+from .dual_convergence_pricer import DualConvergencePricer, PricingEngine, OptionContract
+from .volatility_arbitrage import VolatilityArbitrageDetector, ArbitrageSignal
+from .dynamic_hedge_engine import DynamicHedgeEngine, HedgePosition
 
 __all__ = [
-    'BaseModel',
-    'ModelParameters',
-    'BlackScholesModel',
-    'BSParameters',
-    'HestonModel',
-    'HestonParameters',
-    'SABRModel',
-    'BinomialTreeModel',
-    'LocalVolatilityModel',
-    'ModelCalibrator',
-    'ImpliedVolatilityCalculator'
+    'DualConvergencePricer',
+    'PricingEngine',
+    'OptionContract',
+    'VolatilityArbitrageDetector',
+    'ArbitrageSignal',
+    'DynamicHedgeEngine',
+    'HedgePosition'
 ]
+
