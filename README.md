@@ -122,7 +122,12 @@ PnL decomposition, real-time Greeks tracking, performance attribution, risk metr
 
 ---
 
+
 ## Quick Start
+```bash
+git clone https://github.com/kevinlmf/Options_Pricing
+cd Options_Pricing
+```
 
 ### Installation
 ```bash
