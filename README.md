@@ -26,8 +26,6 @@ Institutional PnL Attribution:
 Net PnL = Systematic Alpha
 ```
 
-This is how Jump Trading, Citadel Securities, SIG, and Jane Street trade volatility edges.
-
 ---
 
 ## The Problem & Solution
@@ -83,7 +81,6 @@ This system includes comprehensive Monte Carlo validation exactly like instituti
 - VaR/CVaR: Risk management validation
 - Confidence Intervals: Uncertainty quantification
 
-**This is how Citadel, Jump Trading validate their volatility strategies before production deployment.**
 
 ## PnL Attribution Pipeline
 
