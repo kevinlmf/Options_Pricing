@@ -75,13 +75,6 @@ This system includes comprehensive Monte Carlo validation exactly like instituti
 - Stochastic price and volatility paths
 - Complete PnL attribution for each scenario
 
-**📊 Statistical Validation Results:**
-- Win Rate: 86% across all scenarios
-- Sharpe Ratio: 6.07 (institutional-grade)
-- VaR/CVaR: Risk management validation
-- Confidence Intervals: Uncertainty quantification
-
-
 ## PnL Attribution Pipeline
 
 The core innovation: From σ_real/σ_impl to Systematic Profits
